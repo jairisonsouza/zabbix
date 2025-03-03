@@ -1,0 +1,105 @@
+version: '3.9'
+
+services:
+  postgres-zabbix:
+    image: postgres:17
+    deploy:
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=false"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_DB_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_DB_USER}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - zabbix-net
+    ports:
+      - 5432:5432 # Opcional
+    env_file:
+      - .env
+
+  zabbix-server:
+    image: zabbix/zabbix-server-pgsql:latest
+    deploy:
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=false"
+    environment:
+      DB_SERVER_HOST: postgres-zabbix
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_DB_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_DB_PASSWORD}
+    depends_on:
+      - postgres-zabbix
+    networks:
+      - zabbix-net
+    env_file:
+      - .env
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-pgsql:latest
+    deploy:
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.grafana.rule=Host(`zabbix.seudominio.com`)" # Altere para o seu domínio
+        - "traefik.http.routers.grafana.entrypoints=websecure"
+        - "traefik.http.routers.grafana.tls.certresolver=myresolver"
+        - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    environment:
+      DB_SERVER_HOST: postgres-zabbix
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_DB_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_DB_PASSWORD}
+      ZBX_SERVER_HOST: zabbix-server
+      PHP_TZ: America/Sao_Paulo
+    depends_on:
+      - postgres-zabbix
+      - zabbix-server
+    networks:
+      - zabbix-net
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+
+  zabbix-agent:
+    image: zabbix/zabbix-agent:latest
+    deploy:
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=false"
+    environment:
+      ZBX_SERVER_HOST: zabbix-server
+    depends_on:
+      - zabbix-server
+    networks:
+      - zabbix-net
+
+  zabbix-snmptraps:
+    image: zabbix/zabbix-snmptraps:latest
+    deploy:
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=false"
+    environment:
+      ZBX_SERVER_HOST: zabbix-server
+    networks:
+      - zabbix-net
+    ports:
+      - "162:162/udp"
+
+volumes:
+  postgres_data:
+
+networks:
+  zabbix-net:
+    driver: overlay
+    external: true
