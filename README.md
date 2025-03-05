@@ -28,8 +28,8 @@ Antes de iniciar a instalação, certifique-se de ter o Docker e o Docker Compos
 Clone este repositório para sua máquina local:
 
 ```bash
-git clone https://github.com/seu-usuario/zabbix-docker.git
-cd zabbix-docker
+git clone git@github.com:jairisonsouza/zabbix.git
+cd zabbix
 ```
 
 ## Passo 2: Configuração do Arquivo .env
